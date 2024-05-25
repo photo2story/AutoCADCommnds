@@ -615,8 +615,9 @@ namespace Dreambuild.AutoCAD
         {
             var buffer = dbo.GetXDataForApplication(Consts.AppNameForTags);
             return buffer.AsArray().Any(typedValue => typedValue.TypeCode == (int)DxfCode.ExtendedDataAsciiString
-                && typedValue.Value == tag);
+                && (string)typedValue.Value == tag);
         }
+
 
         [Obsolete("Legacy data store mechanism. Use FlexDataStore instead.")]
         public static bool HasTag(this ObjectId id, string tag)
