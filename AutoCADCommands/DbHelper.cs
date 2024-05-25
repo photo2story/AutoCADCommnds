@@ -615,7 +615,7 @@ namespace Dreambuild.AutoCAD
         {
             var buffer = dbo.GetXDataForApplication(Consts.AppNameForTags);
             return buffer.AsArray().Any(typedValue => typedValue.TypeCode == (int)DxfCode.ExtendedDataAsciiString
-                && (string)typedValue.Value == tag);
+                    && (typedValue.Value as string) == tag);
         }
 
 
@@ -653,9 +653,10 @@ namespace Dreambuild.AutoCAD
         {
             var buffer = dbo.GetXDataForApplication(Consts.AppNameForTags);
             var data = buffer.AsArray().Where(typedValue => typedValue.TypeCode == (int)DxfCode.ExtendedDataAsciiString
-                && typedValue.Value != tag).ToArray();
+                && (string)typedValue.Value != tag).ToArray();
             dbo.XData = new ResultBuffer(data);
         }
+
 
         [Obsolete("Legacy data store mechanism. Use FlexDataStore instead.")]
         public static void RemoveTag(this ObjectId id, string tag)

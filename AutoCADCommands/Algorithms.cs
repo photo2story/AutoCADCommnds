@@ -1388,13 +1388,30 @@ namespace Dreambuild.AutoCAD
         public static void PolyClean_RemoveColinearPoints(Polyline poly)
         {
             var points = poly.GetPolyPoints().ToArray();
-            var cleanList = new List<int>();
-            int j = 0;
-            for (int i = 1; i < points.Length; i++)
+            var cleanList = new List<Point2D>();
+            cleanList.Add(points[0]); // Add the first point
+
+            for (int i = 1; i < points.Length - 1; i++)
             {
-                // TODO: implement this.
-                throw new NotImplementedException();
+                var prev = points[i - 1];
+                var curr = points[i];
+                var next = points[i + 1];
+
+                // Calculate the direction of the vectors prev-curr and curr-next
+                var dir1 = new Point2D(curr.X - prev.X, curr.Y - prev.Y);
+                var dir2 = new Point2D(next.X - curr.X, next.Y - curr.Y);
+
+                // If the directions are not the same, add the point to the clean list
+                if (dir1.X * dir2.Y - dir1.Y * dir2.X != 0)
+                {
+                    cleanList.Add(curr);
+                }
             }
+
+            cleanList.Add(points[points.Length - 1]); // Add the last point
+
+            // Replace the points in the polyline with the clean list
+            poly.SetPolyPoints(cleanList.ToArray());
         }
 
         /// <summary>
