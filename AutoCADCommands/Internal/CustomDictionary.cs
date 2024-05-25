@@ -229,13 +229,26 @@ namespace Dreambuild.AutoCAD.Internal
             using (var trans = id.Database.TransactionManager.StartTransaction())
             {
                 var dbo = trans.GetObject(id, OpenMode.ForRead);
-                var dictRoot = trans.GetObject(dbo.ExtensionDictionary, OpenMode.ForRead) as DBDictionary;
-                foreach (var entry in dictRoot)
+                // 확장 딕셔너리가 없다면 새로 생성
+                if (dbo.ExtensionDictionary == ObjectId.Null)
                 {
-                    yield return entry.Key;
+                    dbo.UpgradeOpen();
+                    dbo.CreateExtensionDictionary();
+                    trans.Commit();
+                    yield break; // 새로 생성된 딕셔너리는 비어 있으므로 바로 반환
+                }
+
+                var dictRoot = trans.GetObject(dbo.ExtensionDictionary, OpenMode.ForRead) as DBDictionary;
+                if (dictRoot != null)
+                {
+                    foreach (var entry in dictRoot)
+                    {
+                        yield return entry.Key;
+                    }
                 }
             }
         }
+
 
         /// <summary>
         /// Gets all keys from a dictionary.
@@ -273,5 +286,38 @@ namespace Dreambuild.AutoCAD.Internal
                 }
             }
         }
+
+        public static void AddDictionaryData(ObjectId id, string dictionaryName, string key, string value)
+        {
+            using (var doclock = Application.DocumentManager.MdiActiveDocument.LockDocument())
+            {
+                using (var trans = HostApplicationServices.WorkingDatabase.TransactionManager.StartTransaction())
+                {
+                    var nod = trans.GetObject(HostApplicationServices.WorkingDatabase.NamedObjectsDictionaryId, OpenMode.ForRead) as DBDictionary;
+                    if (!nod.Contains(dictionaryName))
+                    {
+                        nod.UpgradeOpen();
+                        var newDict = new DBDictionary();
+                        nod.SetAt(dictionaryName, newDict);
+                        trans.AddNewlyCreatedDBObject(newDict, true);
+                    }
+
+                    var dict = trans.GetObject(nod.GetAt(dictionaryName), OpenMode.ForWrite) as DBDictionary;
+                    var entry = new Xrecord
+                    {
+                        Data = new ResultBuffer(new TypedValue((int)DxfCode.ExtendedDataAsciiString, value))
+                    };
+                    if (dict.Contains(key))
+                    {
+                        dict.Remove(key);
+                    }
+                    dict.SetAt(key, entry);
+                    trans.AddNewlyCreatedDBObject(entry, true);
+
+                    trans.Commit();
+                }
+            }
+        }
+
     }
 }

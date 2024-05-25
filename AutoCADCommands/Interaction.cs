@@ -1044,6 +1044,11 @@ namespace Dreambuild.AutoCAD
             var jig = new FlexDrawJig(options, result => updateAction((PromptPointResult)result));
             return ed.Drag(jig);
         }
+
+        internal static bool GetYesNo(string v)
+        {
+            throw new NotImplementedException();
+        }
     }
 
     internal class LineJig : EntityJig

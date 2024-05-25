@@ -38,19 +38,85 @@ namespace Dreambuild.AutoCAD
         [CommandMethod("ViewObjectDict")]
         public static void ViewObjectDict()
         {
-            var id = Interaction.GetEntity("\nSelect entity");
-            if (id == ObjectId.Null)
+            Document doc = Application.DocumentManager.MdiActiveDocument;
+            Database db = doc.Database;
+            Editor ed = doc.Editor;
+
+            // 사용자로부터 엔티티 선택 요청
+            PromptEntityResult ers = ed.GetEntity("\nSelect entity");
+            if (ers.Status != PromptStatus.OK)
             {
+                Interaction.WriteLine("No entity selected.");
                 return;
             }
-            var dv = new DictionaryViewer(  // Currying
-                () => CustomObjectDictionary.GetDictionaryNames(id),
-                dict => CustomObjectDictionary.GetEntryNames(id, dict),
-                (dict, key) => CustomObjectDictionary.GetValue(id, dict, key),
-                (dict, key, value) => CustomObjectDictionary.SetValue(id, dict, key, value)
-            );
-            Application.ShowModalWindow(dv);
+
+            ObjectId id = ers.ObjectId;
+
+            // 디버깅을 위해 선택된 엔티티의 정보 출력
+            Interaction.WriteLine($"Selected entity ID: {id}");
+
+            IEnumerable<string> dictNames = new List<string>();
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                DBObject dbObj = tr.GetObject(id, OpenMode.ForRead);
+                ObjectId extId = dbObj.ExtensionDictionary;
+
+                // 엔티티에 확장 딕셔너리가 없는 경우 새로 생성
+                if (extId == ObjectId.Null)
+                {
+                    dbObj.UpgradeOpen();
+                    dbObj.CreateExtensionDictionary();
+                    extId = dbObj.ExtensionDictionary;
+
+                    // 확장 딕셔너리에 새 딕셔너리 항목 추가
+                    DBDictionary dbExt = (DBDictionary)tr.GetObject(extId, OpenMode.ForWrite);
+                    Xrecord xRec = new Xrecord();
+                    ResultBuffer rb = new ResultBuffer(new TypedValue((int)DxfCode.ExtendedDataAsciiString, "Newly Added Data"));
+                    xRec.Data = rb;
+
+                    dbExt.SetAt("NewDictionary", xRec);
+                    tr.AddNewlyCreatedDBObject(xRec, true);
+
+                    dictNames = new List<string> { "NewDictionary" };
+                    Interaction.WriteLine("A new dictionary has been added.");
+                }
+                else
+                {
+                    // 기존 딕셔너리 이름을 가져옴
+                    DBDictionary dbExt = (DBDictionary)tr.GetObject(extId, OpenMode.ForRead);
+                    dictNames = dbExt.Cast<DBDictionaryEntry>().Select(e => e.Key);
+                    if (!dictNames.Any())
+                    {
+                        Interaction.WriteLine("No dictionaries found for the selected entity.");
+                    }
+                    else
+                    {
+                        Interaction.WriteLine("Dictionaries found:");
+                        foreach (var name in dictNames)
+                        {
+                            Interaction.WriteLine(name);
+                        }
+                    }
+                }
+                tr.Commit();
+            }
+
+            if (dictNames.Any())
+            {
+                // 딕셔너리 뷰어로 화면 표시
+                var dv = new DictionaryViewer(
+                    () => dictNames,
+                    dict => CustomObjectDictionary.GetEntryNames(id, dict),
+                    (dict, key) => CustomObjectDictionary.GetValue(id, dict, key),
+                    (dict, key, value) => CustomObjectDictionary.SetValue(id, dict, key, value)
+                );
+
+                Application.ShowModalWindow(dv);
+            }
         }
+
+
+
 
         /// <summary>
         /// Eliminates zero-length polylines.

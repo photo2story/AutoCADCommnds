@@ -11,6 +11,11 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Autodesk.AutoCAD.Runtime;
+using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.DatabaseServices;
+using Autodesk.AutoCAD.EditorInput;
+
 
 namespace Dreambuild.AutoCAD
 {
@@ -43,49 +48,97 @@ namespace Dreambuild.AutoCAD
             _setValue = setValue;
         }
 
+        public IEnumerable<string> SafeGetDictNames()
+        {
+            try
+            {
+                var ids = _getDictNames();
+                if (ids != null && ids.All(id => id != ObjectId.Null.ToString()))
+                {
+                    return ids;
+                }
+                else
+                {
+                    MessageBox.Show("No valid dictionaries found.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return Enumerable.Empty<string>();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Failed to load dictionaries: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return Enumerable.Empty<string>();
+            }
+        }
+
         public void DictionaryViewer_Loaded(object sender, RoutedEventArgs e)
         {
-            _getDictNames().ForEach(name => this.DictionaryList.Items.Add(name));
-            this.DictionaryList.SelectedIndex = 0;
+            try
+            {
+                SafeGetDictNames().ForEach(name => this.DictionaryList.Items.Add(name));
+                this.DictionaryList.SelectedIndex = 0;
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Error loading dictionaries: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
+
 
         private void DictionaryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            this.EntryList.Items.Clear();
-            string dict = this.DictionaryList.SelectedItem.ToString();
-            _getEntryNames(dict)
-                .OrderBy(name => name)
-                .Select(name => new
-                {
-                    Key = name,
-                    Value = _getValue(dict, name)
-                })
-                .ForEach(entry => this.EntryList.Items.Add(entry));
+            try
+            {
+                this.EntryList.Items.Clear();
+                string dict = this.DictionaryList.SelectedItem?.ToString();
+                if (dict == null) return;
+
+                _getEntryNames(dict)
+                    .OrderBy(name => name)
+                    .Select(name => new
+                    {
+                        Key = name,
+                        Value = _getValue(dict, name)
+                    })
+                    .ForEach(entry => this.EntryList.Items.Add(entry));
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Error loading entries: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
+
 
         private void EntryList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            if (this.DictionaryList.SelectedIndex == -1 || this.EntryList.SelectedIndex == -1)
+            try
             {
-                return;
+                if (this.DictionaryList.SelectedIndex == -1 || this.EntryList.SelectedIndex == -1)
+                {
+                    return;
+                }
+
+                string dict = this.DictionaryList.SelectedItem.ToString();
+                string key = _getEntryNames(dict).OrderBy(name => name).ToList()[this.EntryList.SelectedIndex];
+                string oldValue = _getValue(dict, key);
+
+                var inputBox = new InputBox(oldValue)
+                {
+                    Owner = this
+                };
+
+                if (inputBox.ShowDialog() == true)
+                {
+                    _setValue(dict, key, inputBox.Value);
+                }
+
+                // Update ListView
+                this.DictionaryList_SelectionChanged(null, null);
             }
-
-            string dict = this.DictionaryList.SelectedItem.ToString();
-            string key = _getEntryNames(dict).OrderBy(name => name).ToList()[this.EntryList.SelectedIndex];
-            string oldValue = _getValue(dict, key);
-
-            var inputBox = new InputBox(oldValue)
+            catch (System.Exception ex)
             {
-                Owner = this
-            };
-
-            if (inputBox.ShowDialog() == true)
-            {
-                _setValue(dict, key, inputBox.Value);
+                MessageBox.Show($"Error processing entry: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
-            // Update ListView
-            this.DictionaryList_SelectionChanged(null, null);
         }
+
     }
 }
