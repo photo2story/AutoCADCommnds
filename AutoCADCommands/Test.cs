@@ -842,7 +842,7 @@ namespace Dreambuild.AutoCAD
         [CommandMethod("TestQOpen")]
         public void TestQOpen()
         {
-            var ids = QuickSelection.SelectAll("LWPOLYLINE").QWhere(pline => pline.FlexDataStore.GetCode() == "parcel").ToArray();
+            var ids = QuickSelection.SelectAll("LWPOLYLINE").QWhere(pline => pline.Database.FlexDataStore().GetCode() == "parcel").ToArray();
             ids.QForEach<Polyline>(poly =>
             {
                 poly.ConstantWidth = 2;
